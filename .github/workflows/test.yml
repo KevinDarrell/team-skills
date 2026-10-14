@@ -1,0 +1,41 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick the first Python that runs (python3 is a Store stub on some Windows installs)
+        run: |
+          for p in python3 python py; do
+            if "$p" -c '' 2>/dev/null; then echo "PY=$p" >> "$GITHUB_ENV"; exit 0; fi
+          done
+          echo "no working Python" >&2; exit 1
+      - name: Tests
+        run: $PY -I -m unittest discover -s tests -v
+
+  # macOS ships Python 3.9; two bugs in these scripts only showed up there.
+  python39:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Tests on Python 3.9
+        run: python -I -m unittest discover -s tests -v
