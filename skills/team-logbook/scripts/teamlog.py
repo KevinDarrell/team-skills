@@ -51,7 +51,8 @@ Commands:
 Only your own files are ever written, plus logbook-settings.json when you set a project up or
 change its settings. logbook.md is rebuilt from all entries files, sorted by time, so nobody edits
 it by hand and two agents never edit the same rows. Times are WIB (UTC+7) whatever the laptop's
-time zone.
+time zone. After `add` and `rebuild`, the personal logbooks (the personal-logbook skill) are
+rebuilt too when this laptop has them set up.
 
 A row in --rows is {"logbook", "timestamp": "YYYY-MM-DD HH:MM", "project", "item",
 "description", "status", "reference"}; "logbook" can be left out when you have one logbook. The
@@ -748,6 +749,7 @@ def cmd_add(args) -> int:
               f"{deleted} deleted. {LOGBOOK}: {total} rows.")
         for w in warnings:
             print(f"warning: {w}")
+    build_personal()
     return 0
 
 
@@ -758,7 +760,30 @@ def cmd_rebuild(args) -> int:
         print(f"{book.name}: {LOGBOOK}: {total} rows.")
         for w in warnings:
             print(f"warning: {w}")
+    build_personal()
     return 0
+
+
+def build_personal() -> None:
+    """Rebuild the personal logbooks (the personal-logbook skill: each person's rows from every
+    project, read only) when this laptop has them set up. Never fails the team logbook's write."""
+    if not Path(os.environ.get("PERSONAL_LOGBOOK_CONFIG")
+                or Path.home() / ".config" / "personal-logbook" / "config.json").is_file():
+        return
+    here = Path(__file__).absolute()
+    script = next((p for p in (d.parents[1] / "personal-logbook" / "scripts" / "worklog.py"
+                               for d in (here.parent, here.resolve().parent)) if p.is_file()), None)
+    if script is None:
+        print("personal logbooks: not rebuilt; the personal-logbook skill is not installed beside this one")
+        return
+    try:
+        out = subprocess.run([sys.executable, "-I", str(script), "build"],
+                             capture_output=True, text=True, encoding="utf-8", timeout=120, check=False)
+    except (OSError, subprocess.SubprocessError) as err:
+        print(f"personal logbooks: not rebuilt ({err})")
+        return
+    for line in (out.stdout + out.stderr).splitlines():
+        print(f"personal logbooks: {line}")
 
 
 def cmd_attach(args) -> int:

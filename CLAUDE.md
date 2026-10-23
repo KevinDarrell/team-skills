@@ -1,6 +1,6 @@
 # team-skills
 
-Claude Code skills for teams, installed on each laptop with `npx skills add` (install, setup and use: `README.md`). Public: keep client names, people's names, internal addresses and real tracker links out of every file, examples and tests included. One skill so far: `skills/team-logbook/`.
+Claude Code skills for teams, installed on each laptop with `npx skills add` (install, setup and use: `README.md`). Public: keep client names, people's names, internal addresses and real tracker links out of every file, examples and tests included. Two skills: `skills/team-logbook/` (rows, per project) and `skills/personal-logbook/` (a read-only table per person, built from the project logbooks).
 
 ## How team-logbook fits together
 
@@ -12,13 +12,21 @@ Claude Code skills for teams, installed on each laptop with `npx skills add` (in
 | `scripts/teamlog.py` | One logbook per project, in the project's synced folder. Each person's agent writes only its own `<own folder>/logbook-entries.md` and `<own folder>/logbook-sources.json` (which repos and folders it routes there), then rebuilds `logbook.md` from everyone's entries. `logbook-settings.json` (project name, language, SharePoint address, whether the Project column holds the project's name or a repo label, column titles, the tracker and its Item format) is written only at project setup or by `settings`. Reading a tracker is the agent's job through a connector (Notion), not a script's. A person's config lists all their logbooks; a 0.5.0 config (one folder) still reads as one |
 | `VERSION` | `teamlog.py check-update` compares it with the copy on `main` to tell people a newer version exists |
 
+## How personal-logbook fits together
+
+| File | Role |
+|---|---|
+| `SKILL.md` | What the agent does when someone says "update the personal logbooks" or asks what a person did across projects |
+| `scripts/worklog.py` | Reads every project logbook listed in `<work log>/worklog-settings.json` (paths relative to the work log's parent, since OneDrive syncs libraries side by side) and rewrites `<person folder>/logbook.md` per person, matching PIC spellings to folders. Never writes to a project logbook. A project not found on a laptop keeps its rows from the current table. `build` also adds the project logbooks the laptop's team-logbook config lists. Its pointer is `~/.config/personal-logbook/config.json` (`PERSONAL_LOGBOOK_CONFIG`) |
+| `teamlog.py` `build_personal()` | After `add` and `rebuild`, runs `worklog.py build` from the sibling skill folder when the personal config exists; its output is prefixed `personal logbooks:` and it never fails the team write |
+
 ## Rules
 
 1. **Every change goes through a pull request.** GitHub cannot protect `main` on this plan, so the hook blocks committing on `main` and pushing to it. Local `main` is often stale: branch from `origin/main` after `git fetch`.
 2. **A change under `skills/<name>/` raises that skill's `VERSION` in the same PR.** Every release so far raised the minor number (0.4.0 → 0.5.0). Tests, CI, README and `.claude/` changes need no bump. Commit and PR titles: `team-logbook 0.6.0: <what changed>`, or `ci: …` for changes outside a skill.
 3. **Python 3.9+, stdlib only.** macOS's `/usr/bin/python3` is 3.9, and that is what people run. Keep `from __future__ import annotations`; no `match`, no `X | Y` outside annotations. Two bugs here only showed up on 3.9: `Path.write_text(newline=...)` (3.10+) and `datetime.fromisoformat` on a trailing `Z` (3.11+).
 4. **macOS, Linux and Windows.** Commands in `SKILL.md` say `python3`, with the note that Windows uses `python`. Write text through `open(path, "w", encoding="utf-8", newline="\n")`, as `write_atomic` does (`Path.write_text` takes no `newline` on 3.9); build paths with `pathlib`. OneDrive can hold a file lock on Windows, which `write_atomic` retries.
-5. **Never touch the live logbook while developing.** The saved config points at the team's real table on SharePoint. Run the repo's `teamlog.py` only with `TEAM_LOGBOOK_CONFIG=<temp folder>/config.json` on the same command line, after a `setup` against a temp shared folder; the hook blocks `add`, `rebuild`, `setup`, `attach`, `settings`, `map`, `unmap` and `ignore` without it. `where`, `route`, `names`, `show` and `day.py` only read.
+5. **Never touch the live logbook while developing.** The saved config points at the team's real table on SharePoint. Run the repo's `teamlog.py` only with `TEAM_LOGBOOK_CONFIG=<temp folder>/config.json` on the same command line, after a `setup` against a temp shared folder; the hook blocks `add`, `rebuild`, `setup`, `attach`, `settings`, `map`, `unmap` and `ignore` without it. `where`, `route`, `names`, `show` and `day.py` only read. On a laptop with personal logbooks set up, `add` and `rebuild` also build them: put `PERSONAL_LOGBOOK_CONFIG=<temp folder>/personal.json` on the same command line, or the live work log gets rebuilt and the temp project registered in it. The tests set both.
 6. **The installed copy is separate.** `/team-logbook` runs `~/.claude/skills/team-logbook`, a link to `~/.agents/skills/team-logbook`, which changes only through `npx skills update -g team-logbook` after a merge (without `-g`, the update skips global skills). Editing this repo does not change it, and the installed copy is never edited by hand.
 7. **Two versions share one folder.** People update at different times, so a new version keeps `logbook.md` and `logbook-entries.md` byte-identical in format, adds no column, reads rows by position (so a retitled column reads the same; an older version rebuilding `logbook.md` just puts the default titles back), and puts new files where an older `*/logbook-entries*.md` glob cannot see them. Check a format change by running the previous `teamlog.py` (`git show main:skills/team-logbook/scripts/teamlog.py`) and the new one on the same scratch folder.
 8. **`SKILL.md` style.** Numbered steps of short imperative bullets, each ending in `Done when:`. Plain English, no filler. Rows in the logbook are English; the agent talks to the person in their own language.

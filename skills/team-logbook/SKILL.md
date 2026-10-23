@@ -145,11 +145,12 @@ Then:
   The script finds the row by day and Item, and writes nothing if one is not there.
 - Run `python3 -I S/scripts/teamlog.py add --rows <file.json>`. Per logbook, it adds new rows, replaces a same-day row for the same item, and rebuilds `logbook.md` in time order with everyone's rows, which is how a row logged late slots in at the right place.
 - A `warning:` line about a conflict copy means the sync app (OneDrive, Google Drive) saved two versions of an entries file (for example `logbook-entries-<laptop>.md`). The rows are already merged; tell the person the copy can be deleted.
+- Lines starting `personal logbooks:` come from the `personal-logbook` skill, which `add` runs by itself when this laptop has it set up: each person's read-only table, combining their rows from every project. Pass its warnings on as that skill says.
 - Done when: the script prints the counts for each logbook and `logbook.md` has the rows.
 
 ## 5. Report
 
-In the person's language: how many rows were added or updated in each logbook, the path of each `logbook.md`, and that the sync app uploads it by itself. Mention any rows you left out and why.
+In the person's language: how many rows were added or updated in each logbook, the path of each `logbook.md`, and that the sync app uploads it by itself. When `add` printed `personal logbooks:` lines, add one line saying which personal tables were updated. Mention any rows you left out and why.
 
 ## Changing the settings
 
