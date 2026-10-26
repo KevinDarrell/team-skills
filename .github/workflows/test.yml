@@ -31,7 +31,7 @@ jobs:
 
   # macOS ships Python 3.9; two bugs in these scripts only showed up there.
   python39:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # setup-python has no 3.9 build for Ubuntu 26.04, which ubuntu-latest became
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
