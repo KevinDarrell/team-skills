@@ -9,4 +9,6 @@ It reads session transcripts under `~/.claude/projects` and `~/.codex/sessions`,
 
 **Ours:** `SKILL.md`, `scripts/day.py` (builds a WIB day window, adds GitHub activity, groups by repo, or by folder outside a repo) and `scripts/teamlog.py` (the shared table). The status rules in `SKILL.md` are adapted from upstream's "Language rules".
 
-**Updating the extractor:** download `standup-digest/scripts/standup_digest.py` at a newer commit into an empty folder, read it, re-apply the patch if upstream has not fixed it, run `day.py` on a recent day, then replace the file here by pull request.
+**Shared with a-day-in-my-life:** `scripts/day.py` and `scripts/standup_digest.py` are the same files as in `skills/a-day-in-my-life/scripts/`, byte for byte, because each skill installs on its own. Change both copies in the same pull request; `tests/test_day.py` fails when they differ.
+
+**Updating the extractor:** download `standup-digest/scripts/standup_digest.py` at a newer commit into an empty folder, read it, re-apply the patch if upstream has not fixed it, run `day.py` on a recent day, then replace the file here and in `skills/a-day-in-my-life/scripts/` by pull request.
