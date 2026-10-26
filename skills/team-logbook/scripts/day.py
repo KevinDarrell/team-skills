@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Print one person's work for one day, grouped by repo or folder, with every time in WIB.
 
-  day.py [--date YYYY-MM-DD] [--repo NAME] [--no-verify]
+  day.py [--date YYYY-MM-DD] [--repo NAME] [--detail] [--no-verify]
 
 Reads this laptop's Claude Code and Codex sessions through the vendored
 standup_digest extractor (see ../SOURCE.md) and prints, per repo: each session
@@ -15,6 +15,12 @@ it apart. Each PR shows when it was opened, your own last activity on it that da
 (commit, comment, review or merge) apart from anyone's last update, and who approved it.
 The day runs midnight to midnight WIB (UTC+7) and every time printed is WIB, whatever
 this laptop's time zone; a time from another day carries its date. It writes nothing.
+
+--detail is for the daily note: per session it prints every prompt of the day and every message
+the agent wrote that day (long ones shortened to fit a budget, short progress lines counted), and
+what it did: files changed, skills, web searches and pages, subagents, test runs, its task list.
+Sessions of Codex's automatic approval reviewer are named as such, without their content. Without
+--detail the output is what the team logbook reads, unchanged.
 """
 
 from __future__ import annotations
@@ -22,7 +28,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -32,6 +40,14 @@ import standup_digest as sd  # noqa: E402
 WIB = timezone(timedelta(hours=7), "WIB")
 OUTSIDE = "(outside any repo)"
 MAX_PROMPTS, MAX_NOTES, CHARS = 20, 8, 300
+# --detail, per session: characters for the day's prompts and for the agent's messages, shared
+# out evenly; messages shorter than SHORT_NOTE are progress lines ("Reading the spec first") and
+# are only counted; LISTED caps each list of files, searches and the like.
+DETAIL_PROMPTS, DETAIL_NOTES, DETAIL_MIN, DETAIL_MAX, SHORT_NOTE, LISTED = 6000, 12000, 300, 1500, 200, 30
+EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
+TEST_RUN = re.compile(r"\b(pytest|unittest|(npm|pnpm|yarn|bun)( run)? test|go test|cargo test|jest|vitest|playwright test|rspec|phpunit)\b")
+REVIEWER = "The following is the Codex agent history"
+HARNESS_PROMPT = re.compile(r"^\s*(<(environment_context|external_codex_apps_open_page)>.*?</\2>\s*)+$", re.S)
 
 
 def repo_name(repo: str | None, path: str | None = None) -> str | None:
@@ -161,6 +177,105 @@ def github_activity(window: sd.Window, warnings: list[str] | None = None) -> lis
     return activity
 
 
+def shared(texts: list[str], budget: int) -> list[str]:
+    """Each text cut to an even share of the budget, between DETAIL_MIN and DETAIL_MAX characters."""
+    limit = max(DETAIL_MIN, min(DETAIL_MAX, budget // max(len(texts), 1)))
+    return [trim(t, limit) for t in texts]
+
+
+SCRATCH = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/",
+           tempfile.gettempdir().rstrip("/\\") + os.sep)
+
+
+def relative(path: str, cwd: str | None) -> str:
+    home = str(Path.home())
+    if cwd and path.startswith(cwd.rstrip("/") + "/"):
+        return path[len(cwd.rstrip("/")) + 1:]
+    return "~" + path[len(home):] if path.startswith(home + "/") else path
+
+
+def session_detail(s: dict, window: sd.Window) -> dict | None:
+    """What one session did that day, read again from its transcript: the day's prompts and the
+    agent's messages, and its tool calls. None when the transcript cannot be read."""
+    try:
+        records = sd.read_transcript(Path(s["transcript"])).records
+    except (OSError, KeyError, TypeError):
+        return None
+    prompts = [p for p in sd.extract_prompts(records, window)[0] if not HARNESS_PROMPT.match(p)]
+    if prompts and all(p.startswith(REVIEWER) for p in prompts):
+        return {"reviewer": True}
+    cwd = (s.get("cwds") or [None])[0]
+    notes, short = [], 0
+    files: dict[str, None] = {}
+    skills: dict[str, int] = {}
+    searches, pages, agents, todos, tests = [], [], [], None, 0
+    for rec in records:
+        if not sd._in_window(rec, window) or rec.get("type") != "assistant":
+            continue
+        content = (rec.get("message") or {}).get("content")
+        for block in content if isinstance(content, list) else []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "text":
+                text = sd.strip_wrappers(block.get("text") or "")
+                if len(text) >= SHORT_NOTE:
+                    notes.append(text)
+                elif text:
+                    short += 1
+                continue
+            if block.get("type") != "tool_use":
+                continue
+            name, args = block.get("name"), block.get("input") or {}
+            if name in EDIT_TOOLS and (args.get("file_path") or args.get("notebook_path")):
+                path = str(args.get("file_path") or args.get("notebook_path"))
+                if not path.startswith(SCRATCH):  # an agent's scratch files are not work
+                    files.setdefault(relative(path, cwd), None)
+            elif name == "Skill" and args.get("skill"):
+                skills[args["skill"]] = skills.get(args["skill"], 0) + 1
+            elif name == "WebSearch" and args.get("query"):
+                searches.append(args["query"])
+            elif name == "WebFetch" and args.get("url"):
+                pages.append(args["url"])
+            elif name in ("Agent", "Task") and args.get("description"):
+                agents.append(args["description"])
+            elif name == "TodoWrite" and isinstance(args.get("todos"), list):
+                todos = args["todos"]
+            elif name == "Bash" and TEST_RUN.search(str(args.get("command") or "")):
+                tests += 1
+    return {"prompts": shared(prompts, DETAIL_PROMPTS), "notes": shared(notes, DETAIL_NOTES), "short": short,
+            "files": list(files), "skills": skills, "searches": list(dict.fromkeys(searches)),
+            "pages": list(dict.fromkeys(pages)), "agents": agents, "todos": todos, "tests": tests}
+
+
+def listed(items: list[str]) -> str:
+    more = f" (+{len(items) - LISTED} more)" if len(items) > LISTED else ""
+    return ", ".join(items[:LISTED]) + more
+
+
+def print_detail(d: dict) -> None:
+    for p in d["prompts"]:
+        print(f"    prompt: {p}")
+    for n in d["notes"]:
+        print(f"    note: {n}")
+    if d["short"]:
+        print(f"    ({d['short']} short progress notes left out)")
+    if d["files"]:
+        print(f"    files changed ({len(d['files'])}): {listed(d['files'])}")
+    if d["skills"]:
+        print("    skills used: " + ", ".join(f"{k} x{v}" if v > 1 else k for k, v in d["skills"].items()))
+    if d["tests"]:
+        print(f"    test runs: {d['tests']}")
+    if d["searches"]:
+        print(f"    web searches: {listed(d['searches'])}")
+    if d["pages"]:
+        print(f"    web pages opened: {listed(d['pages'])}")
+    if d["agents"]:
+        print(f"    subagents: {listed(d['agents'])}")
+    if d["todos"]:
+        print("    task list at the end: " + "; ".join(
+            f"[{t.get('status', '?')}] {trim(str(t.get('content') or ''), 120)}" for t in d["todos"]))
+
+
 def origin(g: dict[str, list]) -> str:
     """Where a group's work came from: its GitHub repos and its folders, so a person can tell it apart."""
     home = str(Path.home())
@@ -174,9 +289,12 @@ def origin(g: dict[str, list]) -> str:
 
 
 def main(argv: list[str]) -> int:
+    if hasattr(sys.stdout, "reconfigure"):  # a Windows pipe would use the ANSI code page
+        sys.stdout.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--date", help="YYYY-MM-DD, default today in WIB")
     ap.add_argument("--repo", help="only repos whose name contains this text")
+    ap.add_argument("--detail", action="store_true", help="everything each session did, for the daily note")
     ap.add_argument("--no-verify", action="store_true", help="skip git and gh (offline)")
     args = ap.parse_args(argv)
 
@@ -226,16 +344,24 @@ def main(argv: list[str]) -> int:
         if name != OUTSIDE and origin(g):
             print(f"  from: {origin(g)}")
         for s in sorted(g["sessions"], key=lambda x: x.get("started_at") or ""):
+            detail = session_detail(s, window) if args.detail else None
+            if detail and detail.get("reviewer"):
+                print(f"- session {hhmm(s.get('started_at'))}-{hhmm(s.get('ended_at'))} Codex's automatic "
+                      "approval reviewer checking another session's commands: not the person's work")
+                continue
             print(f"- session {hhmm(s.get('started_at'))}-{hhmm(s.get('ended_at'))} "
                   f"\"{trim(s.get('title') or '', 80)}\" launch={s.get('launch')} "
                   f"branches={', '.join(s.get('branches') or []) or '-'}")
-            prompts = s.get("prompts") or []
-            for p in prompts[:MAX_PROMPTS]:
-                print(f"    prompt: {trim(p)}")
-            if len(prompts) > MAX_PROMPTS:
-                print(f"    (+{len(prompts) - MAX_PROMPTS} more prompts)")
-            for n in (s.get("assistant_notes") or [])[:MAX_NOTES]:
-                print(f"    note: {trim(n)}")
+            if detail:
+                print_detail(detail)
+            else:
+                prompts = s.get("prompts") or []
+                for p in prompts[:MAX_PROMPTS]:
+                    print(f"    prompt: {trim(p)}")
+                if len(prompts) > MAX_PROMPTS:
+                    print(f"    (+{len(prompts) - MAX_PROMPTS} more prompts)")
+                for n in (s.get("assistant_notes") or [])[:MAX_NOTES]:
+                    print(f"    note: {trim(n)}")
             for r in s.get("refs") or []:
                 # A bare "#5" is looked up as an issue; GitHub's answer says when it is a PR.
                 kind = "pr" if "/pull/" in (r.get("url") or "") else r.get("kind")

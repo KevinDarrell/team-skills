@@ -7,6 +7,7 @@ Claude Code skills for teams. Public: anyone can install them, no access needed.
 | Skill | What it does |
 |---|---|
 | `team-logbook` | Adds the day's work to each project's shared logbook table (`logbook.md` in a folder the project's team syncs, usually on SharePoint): one row per thing made, with No, Timestamp (WIB), PIC, Project, Item, Description (or the project's own title for it), Status and Reference |
+|  | Also writes each person's daily note: everything they did that day, across all projects, in detail, as one Markdown file per day in their own synced folder |
 
 ## Install (once per laptop)
 
@@ -74,6 +75,23 @@ At the end of the day, in any Claude Code session: "update team logbook" (or `/t
 - Each person's agent writes only their own files. `logbook.md` is rebuilt from everyone's rows, sorted by time, so do not edit it by hand.
 - Work that continues the next day gets a new row with the same Item name.
 - All times are WIB, whatever your laptop's time zone.
+
+## Daily note (once per person)
+
+Besides the project logbook, each person can keep a daily note: one file per day of everything they worked on, across all projects, with what was done, what was found, what was decided and what is next, under a heading per piece of work. It is read from the day's Claude Code and Codex sessions on the laptop, GitHub, and any calendar or meeting-notes connector the person chooses.
+
+1. Make a folder of your own in the team's synced storage (for example `Daily Notes/AN` on SharePoint), synced to your laptop.
+2. Optional: connect a calendar (Google Calendar, or Microsoft 365 for Outlook) or meeting notes (Fireflies) in your claude.ai connector settings, then open a new Claude Code session. Microsoft 365 can need your IT admin's approval first. Claude Code sees these connectors when it is signed in with the same claude.ai account.
+3. In Claude Code, say "update my daily note" (or "catatan harian"). The first time, the agent asks for your note folder, the language notes are written in, and which connectors to read. Your answers go to `~/.config/team-logbook/config.json`.
+
+Each run shows you the draft first and writes only after you agree, since the whole team can read the folder. Missed days can be written later, one note per day, for as long as the laptop still has the sessions (Claude Code keeps them about 30 days). Chats on claude.ai are not on the laptop, so they are not read; tell the agent about that work when it asks.
+
+```
+Daily Notes/
+├── AN/2026-10-12.md   Ana's note for that day, written only by Ana's agent
+├── AN/2026-10-13.md
+└── BD/2026-10-12.md   Budi's
+```
 
 ## Develop
 
