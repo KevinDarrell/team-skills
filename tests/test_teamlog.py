@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Optional
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "skills" / "team-logbook" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -25,8 +26,10 @@ def row(ts, item, status="In progress", project="client-alpha", description="did
 class Cli:
     """Runs teamlog.py as a person would, with its own config and a shared folder."""
 
-    def __init__(self, folder: Path, home: Path, pic: str, own: str):
-        self.env = dict(os.environ, TEAM_LOGBOOK_CONFIG=str(home / f"{pic}.json"))
+    def __init__(self, folder: Path, home: Path, pic: str, own: str, personal: Optional[Path] = None):
+        # Without a personal config of its own, `add` would rebuild the real personal logbooks.
+        self.env = dict(os.environ, TEAM_LOGBOOK_CONFIG=str(home / f"{pic}.json"),
+                        PERSONAL_LOGBOOK_CONFIG=str(personal or home / "no-personal-logbook.json"))
         self.folder, self.pic, self.own = folder, pic, own
         assert self.run("setup", "--pic", pic, "--folder", str(folder), "--own-folder", own).returncode == 0
 
@@ -65,6 +68,13 @@ class TeamLogbook(unittest.TestCase):
         self.assertEqual([r[0] for r in rows], ["1", "2"])
         self.assertEqual([r[2] for r in rows], ["Budi", "Ana"])
         self.assertEqual([r[1] for r in rows], ["2026-10-12 10:00", "2026-10-12 12:00"])
+
+    def test_a_logbook_is_found_by_its_path_written_another_way(self):
+        # The same folder as setup saw it, spelled with a detour; a link such as macOS's /var does the same.
+        detour = str(self.folder / ".." / self.folder.name)
+        res = self.ana.run("settings", "--logbook", detour, "--name", "Alpha")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("Alpha", self.ana.run("where").stdout)
 
     def test_each_agent_writes_only_its_own_file_and_pic(self):
         r = row("2026-10-12 09:00", "Sesuatu")

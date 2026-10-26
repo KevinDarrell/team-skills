@@ -7,6 +7,7 @@ Claude Code skills for teams. Public: anyone can install them, no access needed.
 | Skill | What it does |
 |---|---|
 | `team-logbook` | Adds the day's work to each project's shared logbook table (`logbook.md` in a folder the project's team syncs, usually on SharePoint): one row per thing made, with No, Timestamp (WIB), PIC, Project, Item, Description (or the project's own title for it), Status and Reference |
+| `personal-logbook` | Builds each person's read-only table (`<their folder>/logbook.md` in a work log folder the team syncs) from their rows in every project's team logbook, so one file shows one person's work across projects. Rows are still written only through `team-logbook`, whose `add` rebuilds these tables by itself |
 | `a-day-in-my-life` | Writes each person's daily note: everything they did that day, across all projects, in detail, as one Markdown file per day (`KD-2026-10-23.md`) in a folder of their own that the team can read |
 
 ## Install (once per laptop)
@@ -27,15 +28,17 @@ A skill goes in once per laptop and then works in every Claude Code session, wha
 ```
 npx skills add KevinDarrell/team-skills --skill team-logbook -g -a claude-code
 npx skills add KevinDarrell/team-skills --skill a-day-in-my-life -g -a claude-code
+npx skills add KevinDarrell/team-skills --skill personal-logbook -g -a claude-code
 ```
 
-Install either one or both. Then open a new Claude Code session.
+Install the ones you use; `personal-logbook` builds on `team-logbook`'s logbooks. Then open a new Claude Code session.
 
 ### Update
 
 ```
 npx skills update -g team-logbook
 npx skills update -g a-day-in-my-life
+npx skills update -g personal-logbook
 ```
 
 Then open a new Claude Code session. Keep the `-g`: without it, `npx skills update` looks only at skills installed for a project and leaves a global one as it was. Updates are never automatic: each run of a skill checks GitHub and tells you when a newer version exists.
@@ -68,6 +71,21 @@ Each project keeps its own logbook, in a folder everyone on the project syncs: u
 ├── logbook-settings.json    the project's name, language, SharePoint address, tracker and column titles
 └── logbook.md               the project's table, rebuilt from everyone's rows, in time order
 ```
+
+## Set up the personal logbooks (once per laptop)
+
+1. In SharePoint, make a library or folder for them (for example `Work Log`), with one folder per person (their initials), and click **Sync**.
+2. In Claude Code, say "set up the personal logbooks". The agent asks for the synced folder and, the first time, whose each folder is: the name as the PIC column of the project logbooks writes it. Someone who logs under two spellings (`Budi`, `Budi Santoso`) gets both, one folder.
+3. Every project logbook you log to is read from then on, and so is any your teammates added. From then on, each `update team logbook` also rebuilds everyone's personal table.
+
+```
+Work Log/
+├── worklog-settings.json    who is who, and the project logbooks to read (paths beside the work log)
+├── AN/logbook.md           Ana's rows from every project, read only
+└── BD/logbook.md           Budi's rows from every project, read only
+```
+
+A laptop that does not sync one of the projects keeps that project's rows from the current tables, so nobody's rows vanish. To see one person's work, say "what did Budi do this week?".
 
 ## Use
 
