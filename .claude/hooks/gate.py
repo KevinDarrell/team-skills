@@ -11,10 +11,14 @@ Reads the hook JSON on stdin and exits 2, with the reasons on stderr, to block:
   - git commit or gh pr create while the tests fail
   - this repo's own teamlog.py writing (add, rebuild, setup, attach, settings, map,
     unmap, ignore) without TEAM_LOGBOOK_CONFIG on the command line, or its own
-    note.py writing (setup, write, ignore) without A_DAY_IN_MY_LIFE_CONFIG: the
-    saved configs point at the team's live logbook and the person's daily notes on
-    SharePoint. The installed copies under ~/.claude/skills or ~/.agents/skills are
-    left alone, so /team-logbook and /a-day-in-my-life work from here as usual.
+    note.py writing (setup, write, ignore) without A_DAY_IN_MY_LIFE_CONFIG, or its
+    own worklog.py writing (setup, person, project, build) without
+    PERSONAL_LOGBOOK_CONFIG: the saved configs point at the team's live logbook,
+    the personal logbooks and the person's daily notes on SharePoint. On a laptop
+    with personal logbooks set up, teamlog.py add and rebuild also rebuild them,
+    so those need PERSONAL_LOGBOOK_CONFIG too. The installed copies under
+    ~/.claude/skills or ~/.agents/skills are left alone, so the skills work from
+    here as usual.
 
 A safety net against slips, not a sandbox: it reads the command text. Anything it
 cannot work out (no git, no origin/main, bad input) lets the command through.
@@ -42,7 +46,8 @@ SCRIPT_RUN = re.compile(
 # Each script's writing commands, and the variable that points it at a scratch config.
 WRITES = {"teamlog.py": ({"add", "rebuild", "setup", "attach", "settings", "map", "unmap", "ignore"},
                          "TEAM_LOGBOOK_CONFIG"),
-          "note.py": ({"setup", "write", "ignore"}, "A_DAY_IN_MY_LIFE_CONFIG")}
+          "note.py": ({"setup", "write", "ignore"}, "A_DAY_IN_MY_LIFE_CONFIG"),
+          "worklog.py": ({"setup", "person", "project", "build"}, "PERSONAL_LOGBOOK_CONFIG")}
 INSTALLED = ("/.claude/skills/", "/.agents/skills/")
 TESTS_TIMEOUT = 150
 
@@ -70,6 +75,15 @@ def strip_text(command: str) -> str:
 # Checks
 # --------------------------------------------------------------------------
 
+def personal_setup() -> bool:
+    """Whether this laptop has personal logbooks, which teamlog.py add and rebuild then rebuild."""
+    return (Path.home() / ".config" / "personal-logbook" / "config.json").is_file()
+
+
+def scratch(variable: str, command: str) -> bool:
+    return re.search(rf"\b{variable}=[^\s;&|]", command) is not None
+
+
 def teamlog_problems(command: str) -> List[str]:
     text = HEREDOC.sub("", command)
     for m in SCRIPT_RUN.finditer(text):
@@ -78,14 +92,18 @@ def teamlog_problems(command: str) -> List[str]:
         verbs, variable = WRITES.get(name, (set(), ""))
         if m.group(2) not in verbs or any(i in script for i in INSTALLED):
             continue
-        if re.search(rf"\b{variable}=[^\s;&|]", command):
-            continue
         rest = text[m.end():].split("&&")[0].split(";")[0].split("|")[0].split()
         if "-h" in rest or "--help" in rest:
             continue
-        return [f"{name} {m.group(2)} from this repo without {variable} writes to the team's live logbook or "
-                f"the person's daily notes. Put {variable}=<temp folder>/config.json in front of the command, "
-                "and run setup against a temp folder first"]
+        if (name == "teamlog.py" and m.group(2) in ("add", "rebuild") and personal_setup()
+                and not scratch("PERSONAL_LOGBOOK_CONFIG", command)):
+            return [f"teamlog.py {m.group(2)} on this laptop also rebuilds the live personal logbooks. Put "
+                    "PERSONAL_LOGBOOK_CONFIG=<temp folder>/personal.json in front of the command as well"]
+        if scratch(variable, command):
+            continue
+        return [f"{name} {m.group(2)} from this repo without {variable} writes to the live logbooks or notes on "
+                f"SharePoint. Put {variable}=<temp folder>/config.json in front of the command, and run setup "
+                "against a temp folder first"]
     return []
 
 

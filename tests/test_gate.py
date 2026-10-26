@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "gate.py"
 sys.path.insert(0, str(HOOK.parent))
@@ -65,6 +66,25 @@ class TeamlogWrites(unittest.TestCase):
         # Each script needs its own variable: the logbook's does not cover the notes, nor the other way round.
         self.assertTrue(gate.teamlog_problems(f"TEAM_LOGBOOK_CONFIG=/tmp/x/config.json {REPO_NOTE} write --file n.md"))
         self.assertTrue(gate.teamlog_problems(f"A_DAY_IN_MY_LIFE_CONFIG=/tmp/x/c.json {REPO_TEAMLOG} add --rows r.json"))
+
+
+class PersonalLogbookWrites(unittest.TestCase):
+    def test_worklog_writes_need_their_own_scratch_config(self):
+        repo = "python3 -I skills/personal-logbook/scripts/worklog.py"
+        for sub in ("setup --folder x", "person Ana --folder AN", "project ../Alpha", "build"):
+            self.assertTrue(gate.teamlog_problems(f"{repo} {sub}"), sub)
+        for cmd in (f"PERSONAL_LOGBOOK_CONFIG=/tmp/x/p.json {repo} build", f"{repo} where", f"{repo} show --person Ana",
+                    "python3 -I ~/.claude/skills/personal-logbook/scripts/worklog.py build"):
+            self.assertEqual(gate.teamlog_problems(cmd), [], cmd)
+
+    def test_teamlog_add_needs_both_when_personal_logbooks_are_set_up(self):
+        add = f"TEAM_LOGBOOK_CONFIG=/tmp/x/c.json {REPO_TEAMLOG} add --rows r.json"
+        with mock.patch.object(gate, "personal_setup", return_value=False):
+            self.assertEqual(gate.teamlog_problems(add), [])
+        with mock.patch.object(gate, "personal_setup", return_value=True):
+            self.assertTrue(gate.teamlog_problems(add))
+            self.assertEqual(gate.teamlog_problems(f"PERSONAL_LOGBOOK_CONFIG=/tmp/x/p.json {add}"), [])
+            self.assertEqual(gate.teamlog_problems(f"TEAM_LOGBOOK_CONFIG=/tmp/x/c.json {REPO_TEAMLOG} where"), [])
 
 
 class PushTargets(unittest.TestCase):

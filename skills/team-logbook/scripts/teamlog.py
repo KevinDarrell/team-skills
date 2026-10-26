@@ -226,7 +226,11 @@ def find_logbook(cfg: dict, name: Optional[str]) -> Optional[Logbook]:
     for b in books:  # the folder's own name still works after the project is renamed
         if wanted in (b.name.lower(), str(b.folder).lower(), b.folder.name.lower()):
             return b
-    return None
+    try:  # a path the person typed differently: ~, or a link such as macOS's /var -> /private/var
+        path = Path(name.strip()).expanduser().resolve()
+    except (OSError, RuntimeError):
+        return None
+    return next((b for b in books if b.folder.resolve() == path), None)
 
 
 def pick_logbook(cfg: dict, name: Optional[str]) -> Logbook:

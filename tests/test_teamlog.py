@@ -69,6 +69,13 @@ class TeamLogbook(unittest.TestCase):
         self.assertEqual([r[2] for r in rows], ["Budi", "Ana"])
         self.assertEqual([r[1] for r in rows], ["2026-10-12 10:00", "2026-10-12 12:00"])
 
+    def test_a_logbook_is_found_by_its_path_written_another_way(self):
+        # The same folder as setup saw it, spelled with a detour; a link such as macOS's /var does the same.
+        detour = str(self.folder / ".." / self.folder.name)
+        res = self.ana.run("settings", "--logbook", detour, "--name", "Alpha")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("Alpha", self.ana.run("where").stdout)
+
     def test_each_agent_writes_only_its_own_file_and_pic(self):
         r = row("2026-10-12 09:00", "Sesuatu")
         r["pic"] = "Budi"  # a PIC in the input is ignored
