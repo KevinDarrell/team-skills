@@ -10,11 +10,11 @@ Reads the hook JSON on stdin and exits 2, with the reasons on stderr, to block:
     change without a new version reaches nobody
   - git commit or gh pr create while the tests fail
   - this repo's own teamlog.py writing (add, rebuild, setup, attach, settings, map,
-    unmap, ignore) or note.py writing (setup, write, ignore) without
-    TEAM_LOGBOOK_CONFIG on the command line: the saved config points at the
-    team's live logbook and the person's daily notes on SharePoint. The installed
-    copy under ~/.claude/skills or ~/.agents/skills is left alone, so
-    /team-logbook works from here as usual.
+    unmap, ignore) without TEAM_LOGBOOK_CONFIG on the command line, or its own
+    note.py writing (setup, write, ignore) without A_DAY_IN_MY_LIFE_CONFIG: the
+    saved configs point at the team's live logbook and the person's daily notes on
+    SharePoint. The installed copies under ~/.claude/skills or ~/.agents/skills are
+    left alone, so /team-logbook and /a-day-in-my-life work from here as usual.
 
 A safety net against slips, not a sandbox: it reads the command text. Anything it
 cannot work out (no git, no origin/main, bad input) lets the command through.
@@ -39,9 +39,10 @@ HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?^\s*\2\s*$", re.S | re.M
 QUOTED = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
 SCRIPT_RUN = re.compile(
     r"\bpy(?:thon[\d.]*)?(?:\.exe)?\s+(?:-\S+\s+)*(\"[^\"]*\"|'[^']*'|\S+)\s+(\w[\w-]*)\b")
-WRITES = {"teamlog.py": {"add", "rebuild", "setup", "attach", "settings", "map", "unmap", "ignore"},
-          "note.py": {"setup", "write", "ignore"}}
-SCRATCH_CONFIG = re.compile(r"\bTEAM_LOGBOOK_CONFIG=[^\s;&|]")
+# Each script's writing commands, and the variable that points it at a scratch config.
+WRITES = {"teamlog.py": ({"add", "rebuild", "setup", "attach", "settings", "map", "unmap", "ignore"},
+                         "TEAM_LOGBOOK_CONFIG"),
+          "note.py": ({"setup", "write", "ignore"}, "A_DAY_IN_MY_LIFE_CONFIG")}
 INSTALLED = ("/.claude/skills/", "/.agents/skills/")
 TESTS_TIMEOUT = 150
 
@@ -70,20 +71,21 @@ def strip_text(command: str) -> str:
 # --------------------------------------------------------------------------
 
 def teamlog_problems(command: str) -> List[str]:
-    if SCRATCH_CONFIG.search(command):
-        return []
     text = HEREDOC.sub("", command)
     for m in SCRIPT_RUN.finditer(text):
         script = m.group(1).strip("'\"").replace("\\", "/")
         name = script.rsplit("/", 1)[-1]
-        if m.group(2) not in WRITES.get(name, ()) or any(i in script for i in INSTALLED):
+        verbs, variable = WRITES.get(name, (set(), ""))
+        if m.group(2) not in verbs or any(i in script for i in INSTALLED):
+            continue
+        if re.search(rf"\b{variable}=[^\s;&|]", command):
             continue
         rest = text[m.end():].split("&&")[0].split(";")[0].split("|")[0].split()
         if "-h" in rest or "--help" in rest:
             continue
-        return [f"{name} {m.group(2)} from this repo without TEAM_LOGBOOK_CONFIG writes to the team's "
-                "live logbook or the person's daily notes. Put TEAM_LOGBOOK_CONFIG=<temp folder>/config.json "
-                "in front of the command, and run setup against a temp folder first"]
+        return [f"{name} {m.group(2)} from this repo without {variable} writes to the team's live logbook or "
+                f"the person's daily notes. Put {variable}=<temp folder>/config.json in front of the command, "
+                "and run setup against a temp folder first"]
     return []
 
 

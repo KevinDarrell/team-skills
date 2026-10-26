@@ -293,6 +293,15 @@ class DayDetail(DayFixture):
         self.assertNotIn("secret transcript", out)
 
 
+class SharedCopies(unittest.TestCase):
+    def test_both_skills_carry_the_same_reader(self):
+        # Each skill installs on its own, so each carries day.py and the extractor; a fix must reach both.
+        other = SCRIPTS.parents[1] / "a-day-in-my-life" / "scripts"
+        for name in ("day.py", "standup_digest.py"):
+            self.assertEqual((SCRIPTS / name).read_bytes(), (other / name).read_bytes(),
+                             f"{name} differs between team-logbook and a-day-in-my-life; change both")
+
+
 class DayCommandLine(DayFixture):
     def test_only_the_given_home_is_read(self):
         self.transcript([user("2026-10-12T02:00:00Z", "fixture prompt")])

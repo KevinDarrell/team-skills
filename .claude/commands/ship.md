@@ -45,4 +45,4 @@ Commands say `python3`. On Windows use `python`: there `python3` is often a Micr
 
 ## 6. Report
 
-In the person's language: the PR link, what was checked and how, and that after merging, each laptop runs `npx skills update -g team-logbook` and opens a new session to get the change.
+In the person's language: the PR link, what was checked and how, and that after merging, each laptop runs `npx skills update -g <skill>` for each changed skill and opens a new session to get the change.

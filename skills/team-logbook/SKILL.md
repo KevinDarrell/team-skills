@@ -1,13 +1,11 @@
 ---
 name: team-logbook
-description: Add the day's work to the project's shared logbook table (logbook.md in a folder the project's team shares, such as a SharePoint folder) — one row per piece of work, with No, Timestamp, PIC, Project, Item, Description, Status and Reference — for whoever runs it, on every project they log to. Also writes a person's detailed daily note of everything they did that day across all projects (one Markdown file per day in their own synced folder), from the day's Claude Code and Codex sessions, GitHub and connected calendars or meeting notes. Use when asked to update the team logbook, log today's work for the team, fill in the shared logbook, change the team logbook's settings, or update or set up the daily note (catatan harian).
+description: Add the day's work to the project's shared logbook table (logbook.md in a folder the project's team shares, such as a SharePoint folder) — one row per piece of work, with No, Timestamp, PIC, Project, Item, Description, Status and Reference — for whoever runs it, on every project they log to. Use when asked to update the team logbook, log today's work for the team, fill in the shared logbook, or change the team logbook's settings.
 ---
 
 # Team logbook
 
 Each project keeps one table, `logbook.md`, in a folder everyone on the project syncs to their laptop: usually a SharePoint folder through OneDrive, but any shared folder works (Google Drive, Dropbox, a network drive). Everyone on the project reads it, managers included, to see how the work is moving. Each person's agent writes only that person's rows, to `<own folder>/logbook-entries.md`; `logbook.md` is rebuilt from everyone's entries and kept in time order. A person can log to several projects: each project's folder is one logbook. All times are WIB.
-
-**Daily note.** For a person's own note of everything they did in a day, across all projects ("update my daily note", "catatan harian"), follow `DAILY.md` in this skill's folder instead of the steps below.
 
 **Talking with the person**
 - Use their language from the first question to the report, even when the instructions, script output and rows are in English: the language of their latest message, and when they mix two, the one most of it is in. Only the rows are written in the logbook's language.

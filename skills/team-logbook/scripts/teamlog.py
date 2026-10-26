@@ -117,23 +117,19 @@ def read_json(path: Path) -> Optional[dict]:
 
 
 def load_config() -> Optional[dict]:
-    """Your settings as {pic, logbooks, ignore, note}. A 0.5.0 file ({pic, folder, own, web_url})
-    reads as one logbook; reading never writes it back. `note` holds your daily note's settings
-    (see note.py), carried through so saving the logbook's settings keeps them."""
+    """Your settings as {pic, logbooks, ignore}. A 0.5.0 file ({pic, folder, own, web_url}) reads
+    as one logbook; reading never writes it back."""
     raw = read_json(config_path())
     if raw is None:
         return None
     books = raw.get("logbooks")
     if not isinstance(books, list):
         books = [{k: raw[k] for k in ("folder", "own", "web_url") if raw.get(k)}] if raw.get("folder") else []
-    cfg = {
+    return {
         "pic": str(raw.get("pic") or "").strip(),
         "logbooks": [b for b in books if isinstance(b, dict) and b.get("folder") and b.get("own")],
         "ignore": [str(g) for g in raw.get("ignore") or []],
     }
-    if isinstance(raw.get("note"), dict):
-        cfg["note"] = raw["note"]
-    return cfg
 
 
 def save_config(cfg: dict) -> Path:
