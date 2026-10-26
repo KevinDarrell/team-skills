@@ -10,7 +10,7 @@ Talk with the person as `SKILL.md` says: in their language, draft first and ask 
 - Run `python3 -I S/scripts/note.py where`.
 - If it says "not set up", ask the person, one thing at a time:
   - their name as the note's title shows it. Skip this when they already keep a logbook: `teamlog.py where` prints it after `pic:`;
-  - their note folder: a folder of their own inside the team's synced storage, one person one folder, and its path on this laptop. Find it with them; do not guess. OneDrive paths are as in `SKILL.md` step 1;
+  - their note folder: a folder of their own inside the team's synced storage, one person one folder, and its path on this laptop. Find it with them; do not guess. OneDrive paths are as in `SKILL.md` step 1. A note covers every project and client, so the folder belongs where only the person's own team can read it, never inside one project's or one client's shared site;
   - the language notes are written in. Suggest the one they talk to you in;
   - which sources to read besides this laptop's sessions and GitHub. List the connectors this session has that hold a day's work, and say which are connected: calendars (Google Calendar, Microsoft 365 for Outlook, Notion Calendar), meeting notes (Fireflies, Notion), or another they name. A connector that is not connected yet is connected by the person at claude.ai, Settings, Connectors, followed by a new session; Microsoft 365 can need their IT admin's approval first. Never connect one yourself.
 

@@ -206,8 +206,9 @@ def cmd_write(args) -> int:
 
 
 def main(argv: List[str]) -> int:
-    if hasattr(sys.stdout, "reconfigure"):  # a Windows pipe would use the ANSI code page
-        sys.stdout.reconfigure(encoding="utf-8")
+    for stream in (sys.stdout, sys.stderr):  # a Windows pipe would use the ANSI code page
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("setup")

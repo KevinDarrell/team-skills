@@ -289,8 +289,9 @@ def origin(g: dict[str, list]) -> str:
 
 
 def main(argv: list[str]) -> int:
-    if hasattr(sys.stdout, "reconfigure"):  # a Windows pipe would use the ANSI code page
-        sys.stdout.reconfigure(encoding="utf-8")
+    for stream in (sys.stdout, sys.stderr):  # a Windows pipe would use the ANSI code page
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--date", help="YYYY-MM-DD, default today in WIB")
     ap.add_argument("--repo", help="only repos whose name contains this text")
