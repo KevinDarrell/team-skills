@@ -228,6 +228,80 @@ class DayOutput(DayFixture):
         self.assertNotIn("subagent work", out)
 
 
+def tool(ts, name, args, sid=SID):
+    return {"type": "assistant", "timestamp": ts, "sessionId": sid,
+            "message": {"role": "assistant", "content": [{"type": "tool_use", "name": name, "input": args}]}}
+
+
+class DayDetail(DayFixture):
+    def test_detail_prints_every_message_of_the_day_and_what_the_session_did(self):
+        notes = [assistant(f"2026-10-12T03:{i:02d}:00Z", f"Finished part {i} of the guard. " + "x" * 220)
+                 for i in range(10)]
+        self.transcript([
+            assistant("2026-10-11T10:00:00Z", "Yesterday's long summary. " + "y" * 220),  # 17:00 WIB the 11th
+            user("2026-10-12T02:00:00Z", "build the guard"),
+            assistant("2026-10-12T02:01:00Z", "Reading the spec first."),
+            *notes,
+            tool("2026-10-12T04:00:00Z", "Edit", {"file_path": f"{DEMO}/src/guard.py"}),
+            tool("2026-10-12T04:01:00Z", "Write", {"file_path": f"{DEMO}/src/guard.py"}),
+            tool("2026-10-12T04:02:00Z", "Write", {"file_path": "/tmp/scratch/pr-body.md"}),
+            tool("2026-10-12T04:03:00Z", "Skill", {"skill": "code-review"}),
+            tool("2026-10-12T04:04:00Z", "Skill", {"skill": "code-review"}),
+            tool("2026-10-12T04:05:00Z", "Bash", {"command": "python3 -m pytest -q"}),
+            tool("2026-10-12T04:06:00Z", "Bash", {"command": "git status"}),
+            tool("2026-10-12T04:07:00Z", "WebSearch", {"query": "guard rules"}),
+            tool("2026-10-12T04:08:00Z", "WebFetch", {"url": "https://example.com/doc"}),
+            tool("2026-10-12T04:09:00Z", "Agent", {"description": "Audit the guard"}),
+            tool("2026-10-12T04:10:00Z", "TodoWrite", {"todos": [{"content": "Write tests", "status": "completed"},
+                                                                  {"content": "Open PR", "status": "pending"}]}),
+        ])
+        plain = self.run_day("--date", "2026-10-12")
+        self.assertLess(plain.count("note: Finished part"), 10)  # the extractor's own budget cuts it short
+        self.assertNotIn("files changed", plain)
+
+        out = self.run_day("--date", "2026-10-12", "--detail")
+        self.assertEqual(out.count("note: Finished part"), 10)
+        self.assertNotIn("Yesterday's long summary", out)
+        self.assertIn("(1 short progress notes left out)", out)
+        self.assertIn("files changed (1): src/guard.py\n", out)
+        self.assertIn("skills used: code-review x2", out)
+        self.assertIn("test runs: 1\n", out)
+        self.assertIn("web searches: guard rules", out)
+        self.assertIn("web pages opened: https://example.com/doc", out)
+        self.assertIn("subagents: Audit the guard", out)
+        self.assertIn("task list at the end: [completed] Write tests; [pending] Open PR", out)
+
+    def test_long_messages_share_the_budget(self):
+        many = [assistant(f"2026-10-12T03:{i:02d}:00Z", "z" * 2000) for i in range(30)]
+        self.transcript([user("2026-10-12T02:00:00Z", "go"), *many])
+        lines = [l for l in self.run_day("--date", "2026-10-12", "--detail").splitlines() if "note: z" in l]
+        self.assertEqual(len(lines), 30)
+        self.assertTrue(all(len(l.split("note: ")[1]) == day.DETAIL_NOTES // 30 for l in lines))
+        self.transcript([user("2026-10-12T02:00:00Z", "go"), *many[:2]])
+        lines = [l for l in self.run_day("--date", "2026-10-12", "--detail").splitlines() if "note: z" in l]
+        self.assertTrue(all(len(l.split("note: ")[1]) == day.DETAIL_MAX for l in lines))
+
+    def test_codex_approval_reviewer_sessions_are_named_not_shown(self):
+        self.transcript([
+            user("2026-10-12T02:00:00Z", "<environment_context><cwd>/work/demo</cwd></environment_context>", sid=SID2),
+            user("2026-10-12T02:00:01Z", "The following is the Codex agent history whose request action you are "
+                                         "assessing. >>> secret transcript", sid=SID2),
+            assistant("2026-10-12T02:00:02Z", '{"risk_level":"low","outcome":"allow"}', sid=SID2),
+        ], sid=SID2)
+        out = self.run_day("--date", "2026-10-12", "--detail")
+        self.assertIn("Codex's automatic approval reviewer", out)
+        self.assertNotIn("secret transcript", out)
+
+
+class SharedCopies(unittest.TestCase):
+    def test_both_skills_carry_the_same_reader(self):
+        # Each skill installs on its own, so each carries day.py and the extractor; a fix must reach both.
+        other = SCRIPTS.parents[1] / "a-day-in-my-life" / "scripts"
+        for name in ("day.py", "standup_digest.py"):
+            self.assertEqual((SCRIPTS / name).read_bytes(), (other / name).read_bytes(),
+                             f"{name} differs between team-logbook and a-day-in-my-life; change both")
+
+
 class DayCommandLine(DayFixture):
     def test_only_the_given_home_is_read(self):
         self.transcript([user("2026-10-12T02:00:00Z", "fixture prompt")])

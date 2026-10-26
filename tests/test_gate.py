@@ -17,6 +17,7 @@ sys.path.insert(0, str(HOOK.parent))
 import gate  # noqa: E402
 
 REPO_TEAMLOG = "python3 -I skills/team-logbook/scripts/teamlog.py"
+REPO_NOTE = "python3 -I skills/a-day-in-my-life/scripts/note.py"
 GIT_ENV = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@example.com",
                GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@example.com")
 
@@ -46,6 +47,24 @@ class TeamlogWrites(unittest.TestCase):
 
     def test_an_empty_config_variable_falls_back_to_the_real_one(self):
         self.assertTrue(gate.teamlog_problems(f"TEAM_LOGBOOK_CONFIG= {REPO_TEAMLOG} add --rows r.json"))
+
+    def test_repo_note_writing_without_a_scratch_config_is_blocked(self):
+        for sub in ("write --file n.md --date 2026-10-12", "setup --folder x --language English", "ignore home"):
+            self.assertTrue(gate.teamlog_problems(f"{REPO_NOTE} {sub}"), sub)
+        for cmd in (
+            f"A_DAY_IN_MY_LIFE_CONFIG=/tmp/x/config.json {REPO_NOTE} write --file n.md",
+            f"{REPO_NOTE} where",
+            f"{REPO_NOTE} show --date 2026-10-12",
+            f"{REPO_NOTE} list",
+            f"{REPO_NOTE} check-update",
+            f"{REPO_NOTE} write --help",
+            "python3 -I ~/.claude/skills/a-day-in-my-life/scripts/note.py write --file n.md",
+            "python3 -I skills/a-day-in-my-life/scripts/day.py --date 2026-10-12 --detail",
+        ):
+            self.assertEqual(gate.teamlog_problems(cmd), [], cmd)
+        # Each script needs its own variable: the logbook's does not cover the notes, nor the other way round.
+        self.assertTrue(gate.teamlog_problems(f"TEAM_LOGBOOK_CONFIG=/tmp/x/config.json {REPO_NOTE} write --file n.md"))
+        self.assertTrue(gate.teamlog_problems(f"A_DAY_IN_MY_LIFE_CONFIG=/tmp/x/c.json {REPO_TEAMLOG} add --rows r.json"))
 
 
 class PushTargets(unittest.TestCase):
